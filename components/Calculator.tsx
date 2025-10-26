@@ -1,0 +1,338 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import type { Machine } from '../types';
+import { SERVICE_LABELS } from '../constants';
+
+interface CalculatorProps {
+  machines: Machine[];
+}
+
+type ServiceKey = keyof typeof SERVICE_LABELS;
+
+interface MachineEntry {
+  id: number;
+  type: string;
+  machineId: string;
+}
+
+const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
+  const [machineEntries, setMachineEntries] = useState<MachineEntry[]>([
+    { id: Date.now(), type: '', machineId: '' }
+  ]);
+  const [distance, setDistance] = useState<string>('');
+  const [distanceError, setDistanceError] = useState<string | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Record<string, boolean>>({});
+  
+  const [transportCost, setTransportCost] = useState<number | null>(null);
+  const [additionalCost, setAdditionalCost] = useState<number | null>(null);
+  const [totalCost, setTotalCost] = useState<number | null>(null);
+
+  const machineTypes = useMemo(() => [...new Set(machines.map(m => m.type))], [machines]);
+  
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat('pl-PL', {
+    style: 'currency',
+    currency: 'PLN',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }), []);
+
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('pl-PL'), []);
+  
+  const rateFormatter = useMemo(() => new Intl.NumberFormat('pl-PL', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }), []);
+  
+  const selectedMachines = useMemo(() => {
+    return machineEntries
+      .map(entry => machines.find(m => m.id === parseInt(entry.machineId, 10)))
+      .filter((m): m is Machine => !!m);
+  }, [machineEntries, machines]);
+
+  const machineForTransport = useMemo(() => {
+    if (selectedMachines.length === 0) return null;
+    if (selectedMachines.length === 1) return selectedMachines[0];
+    return selectedMachines.reduce((prev, current) => (prev.rate > current.rate ? prev : current));
+  }, [selectedMachines]);
+
+  const isAnyServiceSelected = useMemo(() => selectedMachines.some(m => m.type === 'USŁUGI'), [selectedMachines]);
+
+  useEffect(() => {
+      const initialServices: Record<string, boolean> = {};
+      selectedMachines.forEach(machine => {
+          const isService = machine.type === 'USŁUGI';
+          (Object.keys(SERVICE_LABELS) as ServiceKey[]).forEach(key => {
+              if (machine[key] !== null) {
+                const isMandatory = !isService && (key === 'review0' || key === 'assembly' || key === 'commissioning');
+                // Dla typu 'USŁUGI' koszt 'commissioning' jest de facto kosztem głównym, więc też jest obowiązkowy.
+                const isMandatoryService = isService && key === 'commissioning';
+                initialServices[`${machine.id}-${key}`] = isMandatory || isMandatoryService;
+              }
+          });
+      });
+      setSelectedServices(initialServices);
+      
+      setTransportCost(null);
+      setAdditionalCost(null);
+      setTotalCost(null);
+  }, [selectedMachines]);
+
+  const handleAddMachine = () => {
+    setMachineEntries(prev => [...prev, { id: Date.now(), type: '', machineId: '' }]);
+  };
+
+  const handleRemoveMachine = (idToRemove: number) => {
+    if (machineEntries.length > 1) {
+        setMachineEntries(prev => prev.filter(entry => entry.id !== idToRemove));
+    }
+  };
+  
+  const handleServiceChange = (machineId: number, serviceKey: ServiceKey) => {
+    const key = `${machineId}-${serviceKey}`;
+    setSelectedServices(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+  
+  // FIX: Explicitly typed MachineSelector as a React.FC to fix TypeScript error. This tells TypeScript it's a React component, so special props like `key` are handled correctly.
+  const MachineSelector: React.FC<{
+    entry: MachineEntry;
+    index: number;
+    canBeRemoved: boolean;
+    onRemove: () => void;
+  }> = ({ entry, index, canBeRemoved, onRemove }) => {
+    
+    const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newType = e.target.value;
+        setMachineEntries(prev => prev.map(item => 
+            item.id === entry.id ? { ...item, type: newType, machineId: '' } : item
+        ));
+    };
+
+    const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newId = e.target.value;
+        setMachineEntries(prev => prev.map(item =>
+            item.id === entry.id ? { ...item, machineId: newId } : item
+        ));
+    };
+
+    return (
+      <div className="space-y-4 border border-gray-200 p-4 rounded-lg relative">
+        {canBeRemoved && (
+            <button onClick={onRemove} className="absolute top-3 right-3 text-red-500 hover:text-red-700 transition-colors" aria-label="Usuń maszynę">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor={`machine-type-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+              Typ maszyny
+            </label>
+            <select 
+              id={`machine-type-${index}`}
+              value={entry.type}
+              onChange={handleTypeChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">-- Wybierz typ --</option>
+              {machineTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`machine-model-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+              { entry.type === 'USŁUGI' ? `Usługa` : `Model maszyny` }
+            </label>
+            <select 
+              id={`machine-model-${index}`}
+              value={entry.machineId}
+              onChange={handleModelChange}
+              disabled={!entry.type}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+            >
+              <option value="">-- Wybierz { entry.type === 'USŁUGI' ? 'usługę' : 'model' } --</option>
+              {machines.filter(m => m.type === entry.type).map(machine => (
+                <option key={machine.id} value={machine.id}>{machine.model}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  const handleCalculate = () => {
+    setTotalCost(null);
+    if (!machineForTransport && !isAnyServiceSelected) {
+      alert('Proszę wybrać maszynę.');
+      return;
+    }
+
+    if (!isAnyServiceSelected && !distance) {
+      alert('Proszę podać odległość.');
+      return;
+    }
+    
+    const distanceValue = parseFloat(distance);
+    if (!isAnyServiceSelected && (isNaN(distanceValue) || distanceValue <= 0)) {
+      setDistanceError('Odległość musi być liczbą dodatnią większą od zera.');
+      return;
+    }
+    setDistanceError(null);
+
+    const calculatedTransportCost = isAnyServiceSelected || !machineForTransport ? 0 : machineForTransport.rate * distanceValue;
+    setTransportCost(calculatedTransportCost);
+
+    let calculatedAdditionalCost = 0;
+    for (const key in selectedServices) {
+        if(selectedServices[key]) {
+            const [machineIdStr, serviceKey] = key.split('-');
+            const machineId = parseInt(machineIdStr);
+            const machine = machines.find(m => m.id === machineId);
+            if (machine && machine[serviceKey as ServiceKey] !== null) {
+                calculatedAdditionalCost += machine[serviceKey as ServiceKey] as number;
+            }
+        }
+    }
+    setAdditionalCost(calculatedAdditionalCost);
+    setTotalCost(calculatedTransportCost + calculatedAdditionalCost);
+  };
+  
+  return (
+    <div className="flex-grow flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl space-y-6">
+        <h2 className="text-3xl font-bold text-center text-gray-800">
+          {isAnyServiceSelected ? 'Oblicz koszt usługi' : 'OBLICZ KOSZTY'}
+        </h2>
+        
+        <div className="space-y-4">
+          {machineEntries.map((entry, index) => (
+            <MachineSelector
+              key={entry.id}
+              entry={entry}
+              index={index}
+              canBeRemoved={machineEntries.length > 1}
+              onRemove={() => handleRemoveMachine(entry.id)}
+            />
+          ))}
+        </div>
+
+        <div className="flex justify-center pt-2">
+            <button 
+              onClick={handleAddMachine}
+              className="text-sm text-green-600 hover:text-green-800 font-semibold transition-colors border-2 border-dashed border-gray-300 rounded-md px-4 py-2 hover:border-green-400"
+            >
+              + Dodaj kolejną maszynę
+            </button>
+        </div>
+        
+        {!isAnyServiceSelected && machineForTransport && (
+          <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+            <p className="font-semibold mb-1">Dane do obliczenia transportu (wybrano maszynę z wyższą stawką):</p>
+            <p><span className="font-semibold">Model:</span> {machineForTransport.name}</p>
+            <p><span className="font-semibold">Waga:</span> {numberFormatter.format(machineForTransport.weight)} kg</p>
+            <p><span className="font-semibold">Stawka transportu:</span> {rateFormatter.format(machineForTransport.rate)} zł/km</p>
+          </div>
+        )}
+        
+        {!isAnyServiceSelected && (
+          <div>
+            <label htmlFor="distance" className="block text-sm font-medium text-gray-700 mb-1">Ilość km</label>
+            <input 
+              type="number"
+              id="distance"
+              value={distance}
+              onChange={(e) => { setDistance(e.target.value); if (distanceError) setDistanceError(null); }}
+              placeholder="np. 200"
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                distanceError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-green-500'
+              }`}
+              aria-invalid={!!distanceError}
+              aria-describedby={distanceError ? 'distance-error' : undefined}
+            />
+            {distanceError && <p id="distance-error" className="mt-1 text-sm text-red-600" role="alert">{distanceError}</p>}
+          </div>
+        )}
+        
+        {selectedMachines.length > 0 && (
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="text-lg font-semibold text-gray-700">
+              {isAnyServiceSelected ? 'Koszt usługi:' : 'Koszty dodatkowe:'}
+            </h3>
+            {selectedMachines.map(machine => (
+              <div key={machine.id}>
+                <h4 className="font-semibold text-md text-gray-600 mb-2">{machine.name}</h4>
+                {Object.entries(SERVICE_LABELS).map(([key, label]) => {
+                  const serviceKey = key as ServiceKey;
+                  const cost = machine[serviceKey];
+                  if (cost === null || cost === undefined) return null;
+                  
+                  const isService = machine.type === 'USŁUGI';
+                  const isMandatory = !isService && (serviceKey === 'review0' || serviceKey === 'commissioning' || serviceKey === 'assembly');
+                  const isMandatoryService = isService && serviceKey === 'commissioning';
+
+                  return (
+                    <div key={serviceKey} className="flex items-center justify-between bg-gray-50 p-2 rounded-md mb-2">
+                      <label htmlFor={`${machine.id}-${serviceKey}`} className={`flex items-center space-x-2 text-sm text-gray-800 ${(isMandatory || isMandatoryService) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                        <input
+                          type="checkbox"
+                          id={`${machine.id}-${serviceKey}`}
+                          checked={selectedServices[`${machine.id}-${serviceKey}`] || false}
+                          onChange={() => handleServiceChange(machine.id, serviceKey)}
+                          disabled={isMandatory || isMandatoryService}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-75"
+                        />
+                        <span>{isService && serviceKey === 'commissioning' ? machine.model : label}</span>
+                      </label>
+                      <span className="text-sm font-medium text-gray-900">
+                        {currencyFormatter.format(cost)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button 
+          onClick={handleCalculate}
+          disabled={!selectedMachines.length || (!isAnyServiceSelected && !distance)}
+          className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-300"
+        >
+          Oblicz
+        </button>
+
+        {totalCost !== null && (
+          <div className="mt-6 space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-xl font-bold text-green-800 text-center border-b pb-2">Podsumowanie kosztów</h3>
+            {!isAnyServiceSelected && (
+              <div className="flex justify-between items-center">
+                <span className="text-md text-gray-600">Koszt transportu:</span>
+                <span className="text-lg font-semibold text-gray-800">
+                  {transportCost !== null && currencyFormatter.format(transportCost)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-md text-gray-600">
+                {isAnyServiceSelected ? 'Koszt usługi:' : 'Suma kosztów dodatkowych:'}
+              </span>
+              <span className="text-lg font-semibold text-gray-800">
+                {additionalCost !== null && currencyFormatter.format(additionalCost)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-green-700 bg-green-100 p-3 rounded-md mt-2">
+              <span className="text-xl font-bold">
+                 {isAnyServiceSelected ? 'Całkowity koszt usługi:' : 'Całkowity koszt końcowy:'}
+              </span>
+              <span className="text-2xl font-extrabold">
+                {currencyFormatter.format(totalCost)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Calculator;
