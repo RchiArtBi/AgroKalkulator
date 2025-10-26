@@ -49,12 +49,15 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
   }, [machineEntries, machines]);
 
   const machineForTransport = useMemo(() => {
-    if (selectedMachines.length === 0) return null;
-    if (selectedMachines.length === 1) return selectedMachines[0];
-    return selectedMachines.reduce((prev, current) => (prev.rate > current.rate ? prev : current));
+    const transportableMachines = selectedMachines.filter(m => m.type !== 'USŁUGI');
+    if (transportableMachines.length === 0) return null;
+    if (transportableMachines.length === 1) return transportableMachines[0];
+    return transportableMachines.reduce((prev, current) => (prev.rate > current.rate ? prev : current));
   }, [selectedMachines]);
 
   const isAnyServiceSelected = useMemo(() => selectedMachines.some(m => m.type === 'USŁUGI'), [selectedMachines]);
+  const isAnyTransportableMachineSelected = useMemo(() => selectedMachines.some(m => m.type !== 'USŁUGI'), [selectedMachines]);
+
 
   useEffect(() => {
       const initialServices: Record<string, boolean> = {};
@@ -161,24 +164,26 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
   
   const handleCalculate = () => {
     setTotalCost(null);
-    if (!machineForTransport && !isAnyServiceSelected) {
-      alert('Proszę wybrać maszynę.');
+    if (selectedMachines.length === 0) {
+      alert('Proszę wybrać maszynę lub usługę.');
       return;
     }
 
-    if (!isAnyServiceSelected && !distance) {
+    if (isAnyTransportableMachineSelected && !distance) {
       alert('Proszę podać odległość.');
       return;
     }
     
     const distanceValue = parseFloat(distance);
-    if (!isAnyServiceSelected && (isNaN(distanceValue) || distanceValue <= 0)) {
+    if (isAnyTransportableMachineSelected && (isNaN(distanceValue) || distanceValue <= 0)) {
       setDistanceError('Odległość musi być liczbą dodatnią większą od zera.');
       return;
     }
     setDistanceError(null);
 
-    const calculatedTransportCost = isAnyServiceSelected || !machineForTransport ? 0 : machineForTransport.rate * distanceValue;
+    const calculatedTransportCost = isAnyTransportableMachineSelected && machineForTransport 
+      ? machineForTransport.rate * distanceValue 
+      : 0;
     setTransportCost(calculatedTransportCost);
 
     let calculatedAdditionalCost = 0;
@@ -200,7 +205,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
     <div className="flex-grow flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl space-y-6">
         <h2 className="text-3xl font-bold text-center text-gray-800">
-          {isAnyServiceSelected ? 'Oblicz koszt usługi' : 'OBLICZ KOSZTY'}
+          {isAnyServiceSelected && !isAnyTransportableMachineSelected ? 'Oblicz koszt usługi' : 'OBLICZ KOSZTY'}
         </h2>
         
         <div className="space-y-4">
@@ -224,7 +229,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
             </button>
         </div>
         
-        {!isAnyServiceSelected && machineForTransport && (
+        {machineForTransport && (
           <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
             <p className="font-semibold mb-1">Dane do obliczenia transportu (wybrano maszynę z wyższą stawką):</p>
             <p><span className="font-semibold">Model:</span> {machineForTransport.name}</p>
@@ -233,7 +238,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
           </div>
         )}
         
-        {!isAnyServiceSelected && (
+        {isAnyTransportableMachineSelected && (
           <div>
             <label htmlFor="distance" className="block text-sm font-medium text-gray-700 mb-1">Ilość km</label>
             <input 
@@ -255,7 +260,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
         {selectedMachines.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-lg font-semibold text-gray-700">
-              {isAnyServiceSelected ? 'Koszt usługi:' : 'Koszty dodatkowe:'}
+              {isAnyTransportableMachineSelected ? 'Koszty dodatkowe i usługi:' : 'Koszty usług:'}
             </h3>
             {selectedMachines.map(machine => (
               <div key={machine.id}>
@@ -295,7 +300,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
 
         <button 
           onClick={handleCalculate}
-          disabled={!selectedMachines.length || (!isAnyServiceSelected && !distance)}
+          disabled={!selectedMachines.length || (isAnyTransportableMachineSelected && !distance)}
           className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-300"
         >
           Oblicz
@@ -304,7 +309,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
         {totalCost !== null && (
           <div className="mt-6 space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg">
             <h3 className="text-xl font-bold text-green-800 text-center border-b pb-2">Podsumowanie kosztów</h3>
-            {!isAnyServiceSelected && (
+            {isAnyTransportableMachineSelected && (
               <div className="flex justify-between items-center">
                 <span className="text-md text-gray-600">Koszt transportu:</span>
                 <span className="text-lg font-semibold text-gray-800">
@@ -314,7 +319,11 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
             )}
             <div className="flex justify-between items-center">
               <span className="text-md text-gray-600">
-                {isAnyServiceSelected ? 'Koszt usługi:' : 'Suma kosztów dodatkowych:'}
+                {
+                  isAnyTransportableMachineSelected 
+                    ? (isAnyServiceSelected ? 'Suma kosztów dodatkowych i usług:' : 'Suma kosztów dodatkowych:') 
+                    : 'Całkowity koszt usług:'
+                }
               </span>
               <span className="text-lg font-semibold text-gray-800">
                 {additionalCost !== null && currencyFormatter.format(additionalCost)}
@@ -322,7 +331,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
             </div>
             <div className="flex justify-between items-center text-green-700 bg-green-100 p-3 rounded-md mt-2">
               <span className="text-xl font-bold">
-                 {isAnyServiceSelected ? 'Całkowity koszt usługi:' : 'Całkowity koszt końcowy:'}
+                 {isAnyTransportableMachineSelected ? 'Całkowity koszt końcowy:' : 'Całkowity koszt usługi:'}
               </span>
               <span className="text-2xl font-extrabold">
                 {currencyFormatter.format(totalCost)}
