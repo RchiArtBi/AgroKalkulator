@@ -4,7 +4,7 @@ import { INITIAL_MACHINES } from '../constants';
 
 const STORAGE_KEY = 'agro-kalkulator-machines';
 const VERSION_KEY = 'agro-kalkulator-data-version';
-const CURRENT_DATA_VERSION = '1.4'; // Wersja danych, zwiększona przy aktualizacji INITIAL_MACHINES
+const CURRENT_DATA_VERSION = '1.5'; // Wersja danych, zwiększona przy aktualizacji INITIAL_MACHINES
 
 // Funkcja do wczytywania maszyn z localStorage przy starcie
 const loadInitialMachines = (): AnyMachine[] => {

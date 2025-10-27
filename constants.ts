@@ -101,6 +101,18 @@ export const INITIAL_CLAAS_MACHINES: ClaasMachine[] = [
     id: 25, producer: 'CLAAS', type: 'USŁUGI', model: 'Gąsiennice', name: 'USŁUGI Gąsiennice',
     weight: 0, rate: 0, review0: null, assembly: null, commissioning: 512.00, review100: null, review500: null, review1000: null,
   },
+  {
+    id: 26, producer: 'CLAAS', type: 'MASZYNY UŻYWANE', model: 'Weryfikacja ciągnika', name: 'MASZYNY UŻYWANE Weryfikacja ciągnika',
+    weight: 0, rate: 0, review0: null, assembly: null, commissioning: 1536.00, review100: null, review500: null, review1000: null,
+  },
+  {
+    id: 27, producer: 'CLAAS', type: 'MASZYNY UŻYWANE', model: 'Przegląd mały', name: 'MASZYNY UŻYWANE Przegląd mały',
+    weight: 0, rate: 0, review0: null, assembly: null, commissioning: 1024.00, review100: null, review500: null, review1000: null,
+  },
+  {
+    id: 28, producer: 'CLAAS', type: 'MASZYNY UŻYWANE', model: 'Przegląd duży', name: 'MASZYNY UŻYWANE Przegląd duży',
+    weight: 0, rate: 0, review0: null, assembly: null, commissioning: 2048.00, review100: null, review500: null, review1000: null,
+  },
 ];
 
 export const INITIAL_BOBCAT_MACHINES: BobcatMachine[] = [
