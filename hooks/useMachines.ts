@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Machine } from '../types';
+import type { AnyMachine } from '../types';
 import { INITIAL_MACHINES } from '../constants';
 
 const STORAGE_KEY = 'agro-kalkulator-machines';
 const VERSION_KEY = 'agro-kalkulator-data-version';
-const CURRENT_DATA_VERSION = '1.3'; // Wersja danych, zwiększana przy aktualizacji INITIAL_MACHINES
+const CURRENT_DATA_VERSION = '1.4'; // Wersja danych, zwiększona przy aktualizacji INITIAL_MACHINES
 
 // Funkcja do wczytywania maszyn z localStorage przy starcie
-const loadInitialMachines = (): Machine[] => {
+const loadInitialMachines = (): AnyMachine[] => {
   try {
     const storedVersion = window.localStorage.getItem(VERSION_KEY);
 
@@ -38,7 +38,7 @@ const loadInitialMachines = (): Machine[] => {
 
 
 export const useMachines = () => {
-  const [machines, setMachines] = useState<Machine[]>(loadInitialMachines);
+  const [machines, setMachines] = useState<AnyMachine[]>(loadInitialMachines);
 
   // Efekt do synchronizacji stanu z localStorage, gdy stan się zmienia
   useEffect(() => {
@@ -50,7 +50,7 @@ export const useMachines = () => {
   }, [machines]);
 
 
-  const loadMachines = useCallback((newMachines: Machine[]) => {
+  const loadMachines = useCallback((newMachines: AnyMachine[]) => {
     setMachines(newMachines);
   }, []);
 

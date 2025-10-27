@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Machine } from '../types';
-import { SERVICE_LABELS } from '../constants';
+import type { AnyMachine, Producer, ClaasMachine, BobcatMachine } from '../types';
+import { CLAAS_SERVICE_LABELS, BOBCAT_SERVICE_LABELS } from '../constants';
 
 interface CalculatorProps {
-  machines: Machine[];
+  machines: AnyMachine[];
 }
 
-type ServiceKey = keyof typeof SERVICE_LABELS;
+type ServiceKey = keyof typeof CLAAS_SERVICE_LABELS | keyof typeof BOBCAT_SERVICE_LABELS;
 
 interface MachineEntry {
   id: number;
@@ -15,6 +15,8 @@ interface MachineEntry {
 }
 
 const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
+  const [selectedProducer, setSelectedProducer] = useState<Producer | null>(null);
+  
   const [machineEntries, setMachineEntries] = useState<MachineEntry[]>([
     { id: Date.now(), type: '', machineId: '' }
   ]);
@@ -26,7 +28,10 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
   const [additionalCost, setAdditionalCost] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState<number | null>(null);
 
-  const machineTypes = useMemo(() => [...new Set(machines.map(m => m.type))], [machines]);
+  const machineTypes = useMemo(() => {
+    if (!selectedProducer) return [];
+    return [...new Set(machines.filter(m => m.producer === selectedProducer).map(m => m.type))];
+  }, [machines, selectedProducer]);
   
   const currencyFormatter = useMemo(() => new Intl.NumberFormat('pl-PL', {
     style: 'currency',
@@ -45,7 +50,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
   const selectedMachines = useMemo(() => {
     return machineEntries
       .map(entry => machines.find(m => m.id === parseInt(entry.machineId, 10)))
-      .filter((m): m is Machine => !!m);
+      .filter((m): m is AnyMachine => !!m);
   }, [machineEntries, machines]);
 
   const machineForTransport = useMemo(() => {
@@ -57,17 +62,43 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
 
   const isAnyServiceSelected = useMemo(() => selectedMachines.some(m => m.type === 'USŁUGI'), [selectedMachines]);
   const isAnyTransportableMachineSelected = useMemo(() => selectedMachines.some(m => m.type !== 'USŁUGI'), [selectedMachines]);
+  
+  const resetCalculatorState = () => {
+      setMachineEntries([{ id: Date.now(), type: '', machineId: '' }]);
+      setDistance('');
+      setDistanceError(null);
+      setSelectedServices({});
+      setTransportCost(null);
+      setAdditionalCost(null);
+      setTotalCost(null);
+  }
 
+  const handleProducerSelect = (producer: Producer) => {
+    resetCalculatorState();
+    setSelectedProducer(producer);
+  };
+  
+  const handleBackToProducerSelection = () => {
+    setSelectedProducer(null);
+    resetCalculatorState();
+  };
 
   useEffect(() => {
       const initialServices: Record<string, boolean> = {};
       selectedMachines.forEach(machine => {
           const isService = machine.type === 'USŁUGI';
-          (Object.keys(SERVICE_LABELS) as ServiceKey[]).forEach(key => {
-              if (machine[key] !== null) {
-                const isMandatory = !isService && (key === 'review0' || key === 'assembly' || key === 'commissioning');
-                // Dla typu 'USŁUGI' koszt 'commissioning' jest de facto kosztem głównym, więc też jest obowiązkowy.
-                const isMandatoryService = isService && key === 'commissioning';
+          const serviceLabels = machine.producer === 'CLAAS' ? CLAAS_SERVICE_LABELS : BOBCAT_SERVICE_LABELS;
+
+          (Object.keys(serviceLabels) as ServiceKey[]).forEach(key => {
+              if ((machine as any)[key] !== null) {
+                let isMandatory = false;
+                if(machine.producer === 'CLAAS'){
+                    isMandatory = !isService && (key === 'review0' || key === 'assembly' || key === 'commissioning');
+                } else {
+                    isMandatory = !isService && (key === 'review0');
+                }
+                const isMandatoryService = isService && key === 'commissioning' && machine.producer === 'CLAAS';
+                
                 initialServices[`${machine.id}-${key}`] = isMandatory || isMandatoryService;
               }
           });
@@ -94,7 +125,6 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
     setSelectedServices(prev => ({ ...prev, [key]: !prev[key] }));
   };
   
-  // FIX: Explicitly typed MachineSelector as a React.FC to fix TypeScript error. This tells TypeScript it's a React component, so special props like `key` are handled correctly.
   const MachineSelector: React.FC<{
     entry: MachineEntry;
     index: number;
@@ -152,7 +182,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
             >
               <option value="">-- Wybierz { entry.type === 'USŁUGI' ? 'usługę' : 'model' } --</option>
-              {machines.filter(m => m.type === entry.type).map(machine => (
+              {machines.filter(m => m.type === entry.type && m.producer === selectedProducer).map(machine => (
                 <option key={machine.id} value={machine.id}>{machine.model}</option>
               ))}
             </select>
@@ -192,8 +222,8 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
             const [machineIdStr, serviceKey] = key.split('-');
             const machineId = parseInt(machineIdStr);
             const machine = machines.find(m => m.id === machineId);
-            if (machine && machine[serviceKey as ServiceKey] !== null) {
-                calculatedAdditionalCost += machine[serviceKey as ServiceKey] as number;
+            if (machine && (machine as any)[serviceKey as ServiceKey] !== null) {
+                calculatedAdditionalCost += (machine as any)[serviceKey as ServiceKey] as number;
             }
         }
     }
@@ -201,12 +231,36 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
     setTotalCost(calculatedTransportCost + calculatedAdditionalCost);
   };
   
+  if (!selectedProducer) {
+    return (
+      <div className="flex-grow flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl space-y-8">
+          <h2 className="text-3xl font-bold text-center text-gray-800">Wybierz producenta</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <button onClick={() => handleProducerSelect('CLAAS')} className="flex flex-col items-center justify-center p-8 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:shadow-lg transition-all duration-300">
+               <span className="text-2xl font-bold text-gray-700">CLAAS</span>
+            </button>
+            <button onClick={() => handleProducerSelect('BOBCAT')} className="flex flex-col items-center justify-center p-8 border-2 border-gray-200 rounded-lg hover:border-red-500 hover:shadow-lg transition-all duration-300">
+              <span className="text-2xl font-bold text-gray-700">BOBCAT</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-grow flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl space-y-6">
-        <h2 className="text-3xl font-bold text-center text-gray-800">
-          {isAnyServiceSelected && !isAnyTransportableMachineSelected ? 'Oblicz koszt usługi' : 'OBLICZ KOSZTY'}
-        </h2>
+        <div className="flex justify-between items-center">
+            <h2 className="text-3xl font-bold text-gray-800">
+              {isAnyServiceSelected && !isAnyTransportableMachineSelected ? 'Oblicz koszt usługi' : 'OBLICZ KOSZTY'}
+            </h2>
+            <button onClick={handleBackToProducerSelection} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">
+              Zmień producenta
+            </button>
+        </div>
+
         
         <div className="space-y-4">
           {machineEntries.map((entry, index) => (
@@ -262,17 +316,26 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
             <h3 className="text-lg font-semibold text-gray-700">
               {isAnyTransportableMachineSelected ? 'Koszty dodatkowe i usługi:' : 'Koszty usług:'}
             </h3>
-            {selectedMachines.map(machine => (
+            {selectedMachines.map(machine => {
+              const serviceLabels = machine.producer === 'CLAAS' ? CLAAS_SERVICE_LABELS : BOBCAT_SERVICE_LABELS;
+              return (
               <div key={machine.id}>
                 <h4 className="font-semibold text-md text-gray-600 mb-2">{machine.name}</h4>
-                {Object.entries(SERVICE_LABELS).map(([key, label]) => {
+                {Object.entries(serviceLabels).map(([key, label]) => {
                   const serviceKey = key as ServiceKey;
-                  const cost = machine[serviceKey];
+                  const cost = (machine as any)[serviceKey];
                   if (cost === null || cost === undefined) return null;
                   
                   const isService = machine.type === 'USŁUGI';
-                  const isMandatory = !isService && (serviceKey === 'review0' || serviceKey === 'commissioning' || serviceKey === 'assembly');
-                  const isMandatoryService = isService && serviceKey === 'commissioning';
+
+                  let isMandatory = false;
+                  if (machine.producer === 'CLAAS') {
+                      isMandatory = !isService && (serviceKey === 'review0' || serviceKey === 'commissioning' || serviceKey === 'assembly');
+                  } else {
+                      isMandatory = !isService && serviceKey === 'review0';
+                  }
+                  const isMandatoryService = isService && serviceKey === 'commissioning' && machine.producer === 'CLAAS';
+
 
                   return (
                     <div key={serviceKey} className="flex items-center justify-between bg-gray-50 p-2 rounded-md mb-2">
@@ -294,7 +357,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
                   );
                 })}
               </div>
-            ))}
+            )})}
           </div>
         )}
 

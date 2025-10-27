@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View } from './types';
+import { View, AnyMachine } from './types';
 import { useMachines } from './hooks/useMachines';
 import Header from './components/Header';
 import Calculator from './components/Calculator';
@@ -20,7 +20,7 @@ const App: React.FC = () => {
       case View.ADMIN_PANEL:
         return <AdminPanel 
                   machines={machines} 
-                  loadMachines={loadMachines}
+                  loadMachines={loadMachines as (machines: AnyMachine[]) => void}
                   onLogout={() => setCurrentView(View.CALCULATOR)}
                 />;
       case View.CALCULATOR:
