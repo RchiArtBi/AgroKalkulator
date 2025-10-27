@@ -353,7 +353,8 @@ export const INITIAL_MACHINES: Machine[] = [
   },
 ];
 
-export const SERVICE_LABELS: Record<string, string> = {
+// FIX: Removed explicit Record<string, string> type to allow TypeScript to infer a more specific type for the keys. This resolves downstream type errors.
+export const SERVICE_LABELS = {
   review0: 'Przegląd "0"',
   assembly: 'Składanie',
   commissioning: 'Uruchomienie',

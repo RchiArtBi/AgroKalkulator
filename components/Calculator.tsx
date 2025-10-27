@@ -240,7 +240,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
         
         {isAnyTransportableMachineSelected && (
           <div>
-            <label htmlFor="distance" className="block text-sm font-medium text-gray-700 mb-1">Ilość km</label>
+            <label htmlFor="distance" className="block text-sm font-medium text-gray-700 mb-1">PODAJ LICZBĘ KILOMETRÓW W OBIE STRONY</label>
             <input 
               type="number"
               id="distance"
