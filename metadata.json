@@ -1,5 +1,5 @@
 {
-  "name": "Copy of AgroKalkulator",
+  "name": "AgroKalkulator",
   "description": "Aplikacja do obliczania kosztów transportu maszyn rolniczych na podstawie modelu maszyny i odległości oraz dodatkowych kosztów z nią związanych.",
   "requestFramePermissions": []
 }
