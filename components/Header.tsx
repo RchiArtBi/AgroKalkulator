@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 
 interface HeaderProps {
   onAdminClick: () => void;
+  onLogout: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onAdminClick }) => {
+const Header: React.FC<HeaderProps> = ({ onAdminClick, onLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,19 +42,27 @@ const Header: React.FC<HeaderProps> = ({ onAdminClick }) => {
             </svg>
           </button>
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-10">
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-10 py-1">
               <a
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   onAdminClick();
-                  // FIX: Corrected typo from `setIsMenu-Open` to `setIsMenuOpen` to fix compilation errors.
                   setIsMenuOpen(false);
                 }}
                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-500 hover:text-white"
               >
                 Panel Admina
               </a>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLogout();
+                }}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-500 hover:text-white border-t border-gray-100"
+              >
+                Wyloguj
+              </button>
             </div>
           )}
         </div>
