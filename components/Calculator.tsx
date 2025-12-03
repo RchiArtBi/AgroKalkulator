@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { AnyMachine, Producer, ClaasMachine, BobcatMachine } from '../types';
 import { CLAAS_SERVICE_LABELS, BOBCAT_SERVICE_LABELS } from '../constants';
-import { GoogleGenAI } from "@google/genai";
 
 interface CalculatorProps {
   machines: AnyMachine[];
@@ -28,14 +27,6 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
   const [transportCost, setTransportCost] = useState<number | null>(null);
   const [additionalCost, setAdditionalCost] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState<number | null>(null);
-
-  // Stan dla sekcji AI
-  const [isAiSectionOpen, setIsAiSectionOpen] = useState<boolean>(false);
-  const [loadingPostalCode, setLoadingPostalCode] = useState<string>('');
-  const [unloadingPostalCode, setUnloadingPostalCode] = useState<string>('');
-  const [isCalculatingDistance, setIsCalculatingDistance] = useState<boolean>(false);
-  const [aiDistanceError, setAiDistanceError] = useState<string | null>(null);
-
 
   const machineTypes = useMemo(() => {
     if (!selectedProducer) return [];
@@ -80,10 +71,6 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
       setTransportCost(null);
       setAdditionalCost(null);
       setTotalCost(null);
-      setIsAiSectionOpen(false);
-      setLoadingPostalCode('');
-      setUnloadingPostalCode('');
-      setAiDistanceError(null);
   }
 
   const handleProducerSelect = (producer: Producer) => {
@@ -204,48 +191,6 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
       </div>
     );
   };
-  
-  const handleCalculateWithAi = async () => {
-    if (!loadingPostalCode || !unloadingPostalCode) {
-        setAiDistanceError('Proszę podać oba kody pocztowe.');
-        return;
-    }
-    setIsCalculatingDistance(true);
-    setAiDistanceError(null);
-
-    try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-        const prompt = `Jaka jest odległość drogowa w kilometrach między kodem pocztowym ${loadingPostalCode} a ${unloadingPostalCode}? Odpowiedz podając samą liczbę, bez dodatkowych słów i jednostek.`;
-        
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-              tools: [{googleMaps: {}}],
-            },
-        });
-
-        const responseText = response.text.trim();
-        // Użyj wyrażenia regularnego, aby wyodrębnić pierwszą liczbę z odpowiedzi
-        const match = responseText.match(/(\d+([.,]\d+)?)/);
-        const singleDistance = match ? parseFloat(match[0].replace(',', '.')) : NaN;
-
-        if (isNaN(singleDistance) || singleDistance <= 0) {
-            console.error("Nie udało się sparsować odległości z odpowiedzi AI:", responseText);
-            throw new Error('Otrzymano nieprawidłową wartość odległości. Sprawdź kody pocztowe.');
-        }
-
-        const roundTripDistance = Math.round(singleDistance * 2);
-        setDistance(String(roundTripDistance));
-        setDistanceError(null);
-        setIsAiSectionOpen(false); // Zamknij sekcję po sukcesie
-    } catch (error) {
-        console.error("Błąd podczas obliczania odległości z AI:", error);
-        setAiDistanceError('Wystąpił błąd podczas obliczania odległości. Sprawdź kody pocztowe i spróbuj ponownie.');
-    } finally {
-        setIsCalculatingDistance(false);
-    }
-  };
 
   const handleCalculate = () => {
     setTotalCost(null);
@@ -363,65 +308,6 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
               aria-describedby={distanceError ? 'distance-error' : undefined}
             />
             {distanceError && <p id="distance-error" className="mt-1 text-sm text-red-600" role="alert">{distanceError}</p>}
-
-            <div className="mt-2 border-t pt-2">
-                <button
-                    onClick={() => setIsAiSectionOpen(!isAiSectionOpen)}
-                    className="w-full text-left text-sm font-medium text-green-600 hover:text-green-800 flex justify-between items-center"
-                    aria-expanded={isAiSectionOpen}
-                >
-                    <span>Oblicz odległość z AI</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isAiSectionOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                </button>
-                {isAiSectionOpen && (
-                    <div className="mt-3 space-y-3 p-3 bg-gray-50 rounded-md border">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label htmlFor="loading-postal-code" className="block text-xs font-medium text-gray-600">Kod pocztowy załadunku</label>
-                                <input
-                                    type="text"
-                                    id="loading-postal-code"
-                                    value={loadingPostalCode}
-                                    onChange={(e) => setLoadingPostalCode(e.target.value)}
-                                    placeholder="np. 00-001"
-                                    className="w-full mt-1 px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="unloading-postal-code" className="block text-xs font-medium text-gray-600">Kod pocztowy rozładunku</label>
-                                <input
-                                    type="text"
-                                    id="unloading-postal-code"
-                                    value={unloadingPostalCode}
-                                    onChange={(e) => setUnloadingPostalCode(e.target.value)}
-                                    placeholder="np. 30-062"
-                                    className="w-full mt-1 px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                />
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleCalculateWithAi}
-                            disabled={isCalculatingDistance}
-                            className="w-full flex justify-center items-center bg-green-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-400 disabled:bg-gray-400 disabled:cursor-wait transition-colors"
-                        >
-                            {isCalculatingDistance ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Obliczanie...
-                                </>
-                            ) : (
-                                'Oblicz z AI i wstaw kilometry'
-                            )}
-                        </button>
-                        {aiDistanceError && <p className="mt-1 text-sm text-red-600" role="alert">{aiDistanceError}</p>}
-                    </div>
-                )}
-            </div>
           </div>
         )}
         
