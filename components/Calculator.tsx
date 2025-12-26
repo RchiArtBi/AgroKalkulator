@@ -199,14 +199,11 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
       return;
     }
 
-    if (isAnyTransportableMachineSelected && !distance) {
-      alert('Proszę podać odległość.');
-      return;
-    }
+    // Usunięto wymóg podania dystansu - jeśli jest pusty, przyjmujemy 0
+    const distanceValue = distance === '' ? 0 : parseFloat(distance);
     
-    const distanceValue = parseFloat(distance);
-    if (isAnyTransportableMachineSelected && (isNaN(distanceValue) || distanceValue <= 0)) {
-      setDistanceError('Odległość musi być liczbą dodatnią większą od zera.');
+    if (distance !== '' && (isNaN(distanceValue) || distanceValue < 0)) {
+      setDistanceError('Odległość musi być liczbą dodatnią.');
       return;
     }
     setDistanceError(null);
@@ -300,7 +297,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
               id="distance"
               value={distance}
               onChange={(e) => { setDistance(e.target.value); if (distanceError) setDistanceError(null); }}
-              placeholder="np. 200"
+              placeholder="np. 200 (pozostaw puste dla 0 km)"
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
                 distanceError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-green-500'
               }`}
@@ -363,7 +360,7 @@ const Calculator: React.FC<CalculatorProps> = ({ machines }) => {
 
         <button 
           onClick={handleCalculate}
-          disabled={!selectedMachines.length || (isAnyTransportableMachineSelected && !distance)}
+          disabled={!selectedMachines.length}
           className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-300"
         >
           Oblicz
